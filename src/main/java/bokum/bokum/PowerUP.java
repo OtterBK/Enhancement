@@ -155,7 +155,7 @@ public class PowerUP extends JavaPlugin {
                 loreList.set(stringIndex, levelString + powerLevel);
             }
 
-            doPlayer.sendMessage(msgPrefix + "§b강화에 성공했습니다!");
+            doPlayer.sendMessage(msgPrefix + "§a강화에 성공했습니다!");
             doPlayer.getWorld().playSound(doPlayer.getLocation(), Sound.BLOCK_ANVIL_USE, 1.5f, 1.5f);
 
         } else { //실패 시
@@ -277,7 +277,7 @@ public class PowerUP extends JavaPlugin {
         public void onPlayerInteractEntity(PlayerInteractEntityEvent evt){
             Player player = evt.getPlayer();
             Entity targetEntity = evt.getRightClicked();
-            if(targetEntity.getCustomName().contains("강화")){ //강화 NPC 클릭 시
+            if(targetEntity.getCustomName() != null && targetEntity.getCustomName().contains("강화")){ //강화 NPC 클릭 시
                 openPowerUI(player);
             }
         }

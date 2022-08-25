@@ -1,0 +1,10 @@
+name: PowerUp
+version: ${project.version}
+main: bokum.bokum.PowerUP
+commands:
+  강화:
+    description: POWER UP COMMAND
+    aliases:
+    permission: op.powerup
+    permission-message: 권한이 부족합니다.
+    usage: /<command> <닉네임>

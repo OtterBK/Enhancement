@@ -22,86 +22,97 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 public class PowerUP extends JavaPlugin {
 
-    public Inventory powerUpUi;
-    private final String powerUpUiTitle = "§0§l강화";
+    private final int powerUpTargetIndex = 20;
+    private final int powerUpMaterialIndex = 24;
     private final int powerUpBtnIndex = 40;
-    private List<Material> powerUpItemTypeList = new ArrayList<Material>();
+    private final int maxPowerLevel = 7;
+    private final String powerUpUiTitle = "§0§l강화";
     private final String levelString = "§f강화 §7+ §c";
     private final String msgPrefix = "§f[ §b강화 §f] ";
 
+    private Inventory powerUpUi;
+    private List<Material> powerUpItemTypeList = new ArrayList<Material>();
+    private HashMap<String, Inventory> uiMap = new HashMap<String, Inventory>();
+
     @Override
     public void onEnable() {
-        // Plugin startup logic
-
-        Bukkit.getPluginManager().registerEvents(new PowerUpEventHandler(), this);
-
-        //시작될때
+        // 원본 강화 UI 생성
         powerUpUi = Bukkit.createInventory(null, 54, powerUpUiTitle);
 
+        // 배경 전부다 검정 유리판으로
         ItemStack blackGlassPane = new ItemStack(Material.STAINED_GLASS_PANE, 1, (short)15);
         for(int i = 0; i < powerUpUi.getSize(); i++){
             powerUpUi.setItem(i, blackGlassPane);
         }
 
+        // 강화 아이템, 소재 올릴 빈 칸 지정
         ItemStack air = new ItemStack(Material.AIR, 1);
-        powerUpUi.setItem(20, air);
-
+        powerUpUi.setItem(powerUpTargetIndex, air);
         powerUpUi.setItem(24, air);
 
+        // 강화 버튼
         ItemStack powerUpBtn = new ItemStack(Material.ANVIL, 1);
         powerUpBtn.addUnsafeEnchantment(Enchantment.LUCK, 1);
         powerUpUi.setItem(powerUpBtnIndex, powerUpBtn);
 
+        // 강화 대상 아이템 종류 지정
+        // 검
         powerUpItemTypeList.add(Material.DIAMOND_SWORD);
         powerUpItemTypeList.add(Material.GOLD_SWORD);
         powerUpItemTypeList.add(Material.IRON_SWORD);
         powerUpItemTypeList.add(Material.STONE_SWORD);
         powerUpItemTypeList.add(Material.WOOD_SWORD);
 
+        //괭이
         powerUpItemTypeList.add(Material.DIAMOND_HOE);
         powerUpItemTypeList.add(Material.GOLD_HOE);
         powerUpItemTypeList.add(Material.IRON_HOE);
         powerUpItemTypeList.add(Material.STONE_HOE);
         powerUpItemTypeList.add(Material.WOOD_HOE);
 
+        //곡괭이
         powerUpItemTypeList.add(Material.DIAMOND_PICKAXE);
         powerUpItemTypeList.add(Material.GOLD_PICKAXE);
         powerUpItemTypeList.add(Material.IRON_PICKAXE);
         powerUpItemTypeList.add(Material.STONE_PICKAXE);
         powerUpItemTypeList.add(Material.WOOD_PICKAXE);
 
+        //도끼
         powerUpItemTypeList.add(Material.DIAMOND_AXE);
         powerUpItemTypeList.add(Material.GOLD_AXE);
         powerUpItemTypeList.add(Material.IRON_AXE);
         powerUpItemTypeList.add(Material.STONE_AXE);
         powerUpItemTypeList.add(Material.WOOD_AXE);
 
+        //삽
         powerUpItemTypeList.add(Material.DIAMOND_SPADE);
         powerUpItemTypeList.add(Material.GOLD_SPADE);
         powerUpItemTypeList.add(Material.IRON_SPADE);
         powerUpItemTypeList.add(Material.STONE_SPADE);
         powerUpItemTypeList.add(Material.WOOD_SPADE);
 
+        Bukkit.getPluginManager().registerEvents(new PowerUpEventHandler(), this); //이벤트 등록ㄴ
+
+        Bukkit.getLogger().info(msgPrefix+"강화 플러그인 로드됨");
+
     }
 
     @Override
     public void onDisable() {
-        // Plugin shutdown logic
+        Bukkit.getLogger().info(msgPrefix+"강화 플러그인 언로드됨");
     }
-
-    //게임내에서 명령어를 친 플레이어
-    //콘솔창일 수도 있음
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String message, String[] args){
         if(message.equalsIgnoreCase("강화")){
             if(sender instanceof Player && sender.isOp()){
                 Player player = (Player) sender;
-                openUI(player);
+                openPowerUI(player);
             } else {
                 sender.sendMessage(msgPrefix + "권한이 부족합니다.");
             }
@@ -109,47 +120,56 @@ public class PowerUP extends JavaPlugin {
         return true;
     }
 
-    public void openUI(Player player){
-        player.openInventory(powerUpUi);
+    //강화 UI 표시
+    public void openPowerUI(Player player){
+        Inventory tempUI = null; //플레이어에게 표시할 UI
+        if(uiMap.containsKey(player.getUniqueId().toString())){
+            tempUI = uiMap.get(player.getUniqueId().toString()); //이미 고유 UI 가 있으면 그걸로
+        } else {
+            tempUI = Bukkit.createInventory(null, powerUpUi.getSize(), powerUpUi.getTitle());
+            tempUI.setContents(powerUpUi.getContents()); //없으면 원분 UI 복사 후 put
+            uiMap.put(player.getUniqueId().toString(), tempUI);
+        }
+        player.openInventory(tempUI);
     }
 
+    //강화하기
     public void doPowerUp(Player doPlayer, ItemStack targetItem){
-        //지금은 그냥 무조건 성공
         ItemMeta itemMeta = targetItem.getItemMeta();
         List<String> loreList = itemMeta.getLore(); //아이템 설명 줄 가져옴
 
         if(loreList == null) loreList = new ArrayList<String>();
 
         String powerLevelString = getPowerLevelString(loreList); //강화 관련 문자1줄 가져옴
-        int powerLevel = getPowerLevel(powerLevelString); //몇강인지 가져옴
+        int powerLevel = getPowerLevel(powerLevelString); //현 재몇강인지 가져옴
 
-        if(powerLevel < 7){
-            int rdNum = getRandom(1, 10);
-            if(rdNum > powerLevel){
-                powerLevel += 1;
-                int stringIndex = loreList.indexOf(powerLevelString);
+        int rdNum = getRandom(1, 10);
+        if(rdNum > powerLevel){ //성공 시
 
-                if(powerLevel == 1){
-                    loreList.add(levelString + 1);
-                } else {
-                    loreList.set(stringIndex, levelString + powerLevel);
-                }
+            powerLevel += 1;
+            int stringIndex = loreList.indexOf(powerLevelString);
 
-                doPlayer.sendMessage(msgPrefix + "§b강화에 성공했습니다!");
-                doPlayer.getWorld().playSound(doPlayer.getLocation(), Sound.BLOCK_ANVIL_USE, 1.5f, 1.5f);
+            if(powerLevel == 1){
+                loreList.add(levelString + 1);
             } else {
-                doPlayer.sendMessage(msgPrefix + "§c강화에 실패했습니다...");
-                doPlayer.getWorld().playSound(doPlayer.getLocation(), Sound.BLOCK_ANVIL_BREAK, 1.5f, 1.5f);
+                loreList.set(stringIndex, levelString + powerLevel);
             }
-        } else {
-            doPlayer.sendMessage(msgPrefix + "§c더 이상 강화가 불가능합니다.");
+
+            doPlayer.sendMessage(msgPrefix + "§b강화에 성공했습니다!");
+            doPlayer.getWorld().playSound(doPlayer.getLocation(), Sound.BLOCK_ANVIL_USE, 1.5f, 1.5f);
+
+        } else { //실패 시
+
+            doPlayer.sendMessage(msgPrefix + "§c강화에 실패했습니다...");
+            doPlayer.getWorld().playSound(doPlayer.getLocation(), Sound.BLOCK_ANVIL_BREAK, 1.5f, 1.5f);
+
         }
 
         itemMeta.setLore(loreList);
         targetItem.setItemMeta(itemMeta);
     }
 
-    //문자열에서 몇 강인지 반환 (예: "강화 + 1" -> 반환: 1
+    //문자열에서 몇 강인지 반환 (예: "강화 + 1" -> 반환: 1)
     public int getPowerLevel(String powerLevelString){
 
         int powerLevel = 0;
@@ -195,42 +215,43 @@ public class PowerUP extends JavaPlugin {
 
             if(inventory.getTitle().equalsIgnoreCase(powerUpUiTitle)){
 
-                if(!(evt.getSlot() == 20 || evt.getSlot() == 24)){
+                if(!(evt.getSlot() == powerUpTargetIndex || evt.getSlot() == powerUpMaterialIndex)){ //강화 아이템, 소재 칸 말고는 클릭 불가
                     evt.setCancelled(true);
                 }
 
-                if(evt.getSlot() == powerUpBtnIndex){
-                    ItemStack powerUpMaterial = inventory.getItem(24);
-                    ItemStack targetItem = inventory.getItem(20);
+                if(evt.getSlot() == powerUpBtnIndex){ //강화 버튼 클릭 시
+                    ItemStack powerUpMaterial = inventory.getItem(powerUpMaterialIndex);
+                    ItemStack targetItem = inventory.getItem(powerUpTargetIndex);
 
                     if(targetItem == null || !powerUpItemTypeList.contains(targetItem.getType())){
                         clickedPlayer.sendMessage(msgPrefix + "§c해당 아이템은 강화가 불가능합니다.");
-                    } else {
-                        String powerLevelString = getPowerLevelString(targetItem.getItemMeta().getLore());
-                        int powerLevel = getPowerLevel(powerLevelString);
-                        int needAmount = powerLevel + 1;
-
-                        if(powerUpMaterial == null || powerUpMaterial.getType() != Material.NETHER_STAR
-                                || powerUpMaterial.getAmount() < needAmount){
-                            clickedPlayer.sendMessage(msgPrefix + "§c네더의 별이 부족합니다. §f(§e"+needAmount+"개 필요§f)");
-                        } else {
-                            if(powerLevel < 7){ //강화 가능하면 네더의 별 감소
-                                powerUpMaterial.setAmount(powerUpMaterial.getAmount() - needAmount);
-                                inventory.setItem(24, powerUpMaterial);
-                            }
-                            doPowerUp(clickedPlayer, targetItem);
-                        }
+                        return;
                     }
+
+                    String powerLevelString = getPowerLevelString(targetItem.getItemMeta().getLore());
+                    int powerLevel = getPowerLevel(powerLevelString);
+                    int needAmount = powerLevel + 1;
+
+                    if(powerUpMaterial == null || powerUpMaterial.getType() != Material.NETHER_STAR || powerUpMaterial.getAmount() < needAmount){
+                        clickedPlayer.sendMessage(msgPrefix + "§c네더의 별이 부족합니다. §f(§e"+needAmount+"개 필요§f)");
+                        return;
+                    }
+
+                    if(powerLevel < maxPowerLevel){ //강화 가능하면 네더의 별 감소 후 강화
+                        powerUpMaterial.setAmount(powerUpMaterial.getAmount() - needAmount);
+                        inventory.setItem(powerUpMaterialIndex, powerUpMaterial);
+
+                        doPowerUp(clickedPlayer, targetItem);
+                    } else {
+                        clickedPlayer.sendMessage(msgPrefix+"§c더 이상 강화가 불가능합니다.");
+                    }
+
                 }
             }
         }
 
         @EventHandler
         public void EntityDamagedByEntity(EntityDamageByEntityEvent evt){
-            //플레이어가 엔티티를 때렸을 때
-            //플레이어가 검을 들고있었다면
-            //데미지를 1로 해라
-
             Entity victimEntity = evt.getEntity();
             Entity damagerEntity = evt.getDamager();
 
@@ -256,8 +277,8 @@ public class PowerUP extends JavaPlugin {
         public void onPlayerInteractEntity(PlayerInteractEntityEvent evt){
             Player player = evt.getPlayer();
             Entity targetEntity = evt.getRightClicked();
-            if(targetEntity.getCustomName().contains("강화")){
-                openUI(player);
+            if(targetEntity.getCustomName().contains("강화")){ //강화 NPC 클릭 시
+                openPowerUI(player);
             }
         }
 

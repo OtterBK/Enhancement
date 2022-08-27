@@ -1,21 +1,23 @@
 package bokum.bokum;
 
+import net.minecraft.server.v1_12_R1.*;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.craftbukkit.v1_12_R1.inventory.CraftItemStack;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -31,6 +33,8 @@ public class PowerUP extends JavaPlugin {
     private final int powerUpMaterialIndex = 24;
     private final int powerUpBtnIndex = 40;
     private final int maxPowerLevel = 7;
+    private final double baseAttackSpeed = 1.5d;
+
     private final String powerUpUiTitle = "§0§l강화";
     private final String levelString = "§f강화 §7+ §c";
     private final String msgPrefix = "§f[ §b강화 §f] ";
@@ -38,6 +42,72 @@ public class PowerUP extends JavaPlugin {
     private Inventory powerUpUi;
     private List<Material> powerUpItemTypeList = new ArrayList<Material>();
     private HashMap<String, Inventory> uiMap = new HashMap<String, Inventory>();
+
+    ///////// Utility
+    public static int getRandom(int min, int max) {
+        return (int)(Math.random() * (max - min + 1) + min);
+    }
+
+    //아이템 공격 값 수정
+    public ItemStack setItemDamage(ItemStack targetItem, double damageValue){
+        net.minecraft.server.v1_12_R1.ItemStack nmsStack = CraftItemStack.asNMSCopy(targetItem);
+
+        NBTTagCompound compound = (nmsStack.hasTag()) ? nmsStack.getTag() : new NBTTagCompound();
+        NBTTagList modifiers = compound.getList("AttributeModifiers", 10);
+        if(modifiers == null) modifiers = new NBTTagList();
+        NBTTagCompound damage = new NBTTagCompound();
+
+        damage.set("AttributeName", new NBTTagString("generic.attackDamage"));
+        damage.set("Name", new NBTTagString("generic.attackDamage"));
+        damage.set("Amount", new NBTTagDouble(damageValue));
+        damage.set("Operation", new NBTTagInt(0));
+        damage.set("UUIDLeast", new NBTTagInt(getRandom(1,99999)));
+        damage.set("UUIDMost", new NBTTagInt(getRandom(1,99999)));
+        damage.set("Slot", new NBTTagString("mainhand"));
+
+        removeTagCompoundByAttributeName(modifiers, "generic.attackDamage");
+
+        modifiers.add(damage);
+        compound.set("AttributeModifiers", modifiers);
+        nmsStack.setTag(compound);
+
+        return CraftItemStack.asBukkitCopy(nmsStack);
+    }
+
+    //아이템 속도 값 설정
+    public ItemStack setItemAttackSpeed(ItemStack targetItem, double speedValue){
+        net.minecraft.server.v1_12_R1.ItemStack nmsStack = CraftItemStack.asNMSCopy(targetItem);
+
+        NBTTagCompound compound = (nmsStack.hasTag()) ? nmsStack.getTag() : new NBTTagCompound();
+        NBTTagList modifiers = compound.getList("AttributeModifiers", 10);
+        if(modifiers == null) modifiers = new NBTTagList();
+        NBTTagCompound attackSpeed = new NBTTagCompound();
+
+        attackSpeed.set("AttributeName", new NBTTagString("generic.attackSpeed"));
+        attackSpeed.set("Name", new NBTTagString("generic.attackSpeed"));
+        attackSpeed.set("Amount", new NBTTagDouble(speedValue));
+        attackSpeed.set("Operation", new NBTTagInt(0));
+        attackSpeed.set("UUIDLeast", new NBTTagInt(getRandom(1,99999)));
+        attackSpeed.set("UUIDMost", new NBTTagInt(getRandom(1,99999)));
+        attackSpeed.set("Slot", new NBTTagString("mainhand"));
+
+        removeTagCompoundByAttributeName(modifiers, "generic.attackSpeed");
+
+        modifiers.add(attackSpeed);
+        compound.set("AttrMyUtilityibuteModifiers", modifiers);
+        nmsStack.setTag(compound);
+
+        return CraftItemStack.asBukkitCopy(nmsStack);
+    }
+
+    public static void removeTagCompoundByAttributeName(NBTTagList nbtTagList, String tagString){
+        for(int i = 0; i < nbtTagList.size(); i++){
+            NBTTagCompound tagCompound = nbtTagList.get(i);
+            if(tagCompound.hasKey("AttributeName") && tagCompound.getString("AttributeName").equalsIgnoreCase(tagString)){
+                nbtTagList.remove(i);
+            }
+        }
+    }
 
     @Override
     public void onEnable() {
@@ -109,9 +179,9 @@ public class PowerUP extends JavaPlugin {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String message, String[] args){
+        Player player = (Player) sender;
         if(message.equalsIgnoreCase("강화")){
             if(sender instanceof Player && sender.isOp()){
-                Player player = (Player) sender;
                 openPowerUI(player);
             } else {
                 sender.sendMessage(msgPrefix + "권한이 부족합니다.");
@@ -133,23 +203,46 @@ public class PowerUP extends JavaPlugin {
         player.openInventory(tempUI);
     }
 
+    //초기 강화 상태
+    public ItemStack initPowerUpItem(ItemStack targetItem){
+        ItemMeta itemMeta = targetItem.getItemMeta();
+        itemMeta.setUnbreakable(true); //내구도 무한
+
+        List<String> loreList = itemMeta.getLore(); //기본 강화 0
+        if(loreList == null) loreList = new ArrayList<String>();
+        loreList.add(levelString + 0);
+        itemMeta.setLore(loreList);
+
+        targetItem.setItemMeta(itemMeta);
+
+        targetItem = setItemDamage(targetItem, 1.0d); //초기 데미지는 1
+        targetItem = setItemAttackSpeed(targetItem, baseAttackSpeed);
+
+        return targetItem;
+    }
+
     //강화하기
-    public void doPowerUp(Player doPlayer, ItemStack targetItem){
+    public ItemStack doPowerUp(Player doPlayer, ItemStack targetItem){
         ItemMeta itemMeta = targetItem.getItemMeta();
         List<String> loreList = itemMeta.getLore(); //아이템 설명 줄 가져옴
 
         if(loreList == null) loreList = new ArrayList<String>();
 
         String powerLevelString = getPowerLevelString(loreList); //강화 관련 문자1줄 가져옴
-        int powerLevel = getPowerLevel(powerLevelString); //현 재몇강인지 가져옴
+        int powerLevel = getPowerLevel(powerLevelString); //현재 몇강인지 가져옴
 
         int rdNum = getRandom(1, 10);
         if(rdNum > powerLevel){ //성공 시
 
             powerLevel += 1;
+            targetItem = setItemDamage(targetItem, powerLevel); //실제 데미지 설정
+            targetItem = setItemAttackSpeed(targetItem, baseAttackSpeed);
+
+            itemMeta = targetItem.getItemMeta(); //ItemMeta 새로 복사
+
             int stringIndex = loreList.indexOf(powerLevelString);
 
-            if(powerLevel == 1){
+            if(powerLevelString == null){
                 loreList.add(levelString + 1);
             } else {
                 loreList.set(stringIndex, levelString + powerLevel);
@@ -161,12 +254,14 @@ public class PowerUP extends JavaPlugin {
         } else { //실패 시
 
             doPlayer.sendMessage(msgPrefix + "§c강화에 실패했습니다...");
-            doPlayer.getWorld().playSound(doPlayer.getLocation(), Sound.BLOCK_ANVIL_BREAK, 1.5f, 1.5f);
+            doPlayer.getWorld().playSound(doPlayer.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.5f, 1.5f);
 
         }
 
         itemMeta.setLore(loreList);
         targetItem.setItemMeta(itemMeta);
+
+        return targetItem;
     }
 
     //문자열에서 몇 강인지 반환 (예: "강화 + 1" -> 반환: 1)
@@ -196,8 +291,9 @@ public class PowerUP extends JavaPlugin {
         return null;
     }
 
-    public static int getRandom(int min, int max) {
-        return (int)(Math.random() * (max - min + 1) + min);
+    //강화된 아이템인지 확인
+    public boolean isPowerUpItem(ItemStack item){
+        return getPowerLevelString(item.getItemMeta().getLore()) != null;
     }
 
     /////////이벤트
@@ -241,7 +337,8 @@ public class PowerUP extends JavaPlugin {
                         powerUpMaterial.setAmount(powerUpMaterial.getAmount() - needAmount);
                         inventory.setItem(powerUpMaterialIndex, powerUpMaterial);
 
-                        doPowerUp(clickedPlayer, targetItem);
+                        ItemStack powerUpItem = doPowerUp(clickedPlayer, targetItem);
+                        inventory.setItem(powerUpTargetIndex, powerUpItem);
                     } else {
                         clickedPlayer.sendMessage(msgPrefix+"§c더 이상 강화가 불가능합니다.");
                     }
@@ -250,26 +347,54 @@ public class PowerUP extends JavaPlugin {
             }
         }
 
+//          아이템 자체 데미지 설정 가능해서 이거 안씀씀
+//        EventHandler
+//        public void EntityDamagedByEntity(EntityDamageByEntityEvent evt){
+//            Entity victimEntity = evt.getEntity();
+//            Entity damagerEntity = evt.getDamager();
+//
+//            if(damagerEntity instanceof Player){
+//                Player damagerPlayer = (Player)damagerEntity;
+//                ItemStack rightHandItem = damagerPlayer.getInventory().getItemInMainHand();
+//                Material rightHandItemType = rightHandItem.getType();
+//                if(powerUpItemTypeList.contains(rightHandItemType)){
+//
+//                    List<String> loreList = rightHandItem.getItemMeta().getLore();
+//
+//                    String powerLevelString = getPowerLevelString(loreList);
+//                    int powerLevel = getPowerLevel(powerLevelString);
+//
+//                    evt.setDamage(1 + powerLevel);
+//
+//                    rightHandItem.setDurability((short)0);
+//                }
+//            }
+//        }
+
         @EventHandler
-        public void EntityDamagedByEntity(EntityDamageByEntityEvent evt){
-            Entity victimEntity = evt.getEntity();
-            Entity damagerEntity = evt.getDamager();
+        public void onPlayerItemPickup(EntityPickupItemEvent evt){
+            Entity entity = evt.getEntity();
+            if(entity instanceof Player){
+                Item item = evt.getItem();
+                ItemStack itemStack = evt.getItem().getItemStack();
 
-            if(damagerEntity instanceof Player){
-                Player damagerPlayer = (Player)damagerEntity;
-                ItemStack rightHandItem = damagerPlayer.getInventory().getItemInMainHand();
-                Material rightHandItemType = rightHandItem.getType();
-                if(powerUpItemTypeList.contains(rightHandItemType)){
-
-                    List<String> loreList = rightHandItem.getItemMeta().getLore();
-
-                    String powerLevelString = getPowerLevelString(loreList);
-                    int powerLevel = getPowerLevel(powerLevelString);
-
-                    evt.setDamage(1 + powerLevel);
-
-                    rightHandItem.setDurability((short)0);
+                if(powerUpItemTypeList.contains(itemStack.getType()) && !isPowerUpItem(itemStack)){ //강화 대상인데 강화되지 않은 경우
+                    ItemStack editedStack = initPowerUpItem(itemStack); //초기 강화 상태로 설정
+                    item.setItemStack(editedStack);
                 }
+            }
+        }
+
+        @EventHandler
+        public void PrepareItemCraftEvent(PrepareItemCraftEvent evt){
+            if(evt.getRecipe() == null) return;
+
+            ItemStack resultItem = evt.getRecipe().getResult();
+            if(resultItem == null) return;
+
+            if(powerUpItemTypeList.contains(resultItem.getType()) && !isPowerUpItem(resultItem)){ //강화 대상인데 강화되지 않은 경우
+                ItemStack newResultItem = initPowerUpItem(resultItem); //초기 강화 상태로 설정
+                evt.getInventory().setResult(newResultItem);
             }
         }
 

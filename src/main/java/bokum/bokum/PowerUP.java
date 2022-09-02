@@ -259,6 +259,7 @@ public class PowerUP extends JavaPlugin {
         }
 
         itemMeta.setLore(loreList);
+        itemMeta.setUnbreakable(true); //내구도 무한
         targetItem.setItemMeta(itemMeta);
 
         return targetItem;
@@ -326,7 +327,7 @@ public class PowerUP extends JavaPlugin {
 
                     String powerLevelString = getPowerLevelString(targetItem.getItemMeta().getLore());
                     int powerLevel = getPowerLevel(powerLevelString);
-                    int needAmount = powerLevel + 1;
+                    int needAmount = (powerLevel <= 0 ? 1 : powerLevel);
 
                     if(powerUpMaterial == null || powerUpMaterial.getType() != Material.NETHER_STAR || powerUpMaterial.getAmount() < needAmount){
                         clickedPlayer.sendMessage(msgPrefix + "§c네더의 별이 부족합니다. §f(§e"+needAmount+"개 필요§f)");

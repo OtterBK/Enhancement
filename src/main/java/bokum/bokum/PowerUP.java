@@ -235,7 +235,7 @@ public class PowerUP extends JavaPlugin {
         if(rdNum > powerLevel){ //성공 시
 
             powerLevel += 1;
-            targetItem = setItemDamage(targetItem, powerLevel); //실제 데미지 설정
+            targetItem = setItemDamage(targetItem, powerLevel+1); //실제 데미지 설정, 1강일 땐 2여야해서 +1
             targetItem = setItemAttackSpeed(targetItem, baseAttackSpeed);
 
             itemMeta = targetItem.getItemMeta(); //ItemMeta 새로 복사

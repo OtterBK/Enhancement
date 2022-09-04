@@ -33,7 +33,7 @@ public class PowerUP extends JavaPlugin {
     private final int powerUpMaterialIndex = 24;
     private final int powerUpBtnIndex = 40;
     private final int maxPowerLevel = 7;
-    private final double baseAttackSpeed = 1.5d;
+    private final double baseAttackSpeed = 1.0d;
 
     private final String powerUpUiTitle = "§0§l강화";
     private final String levelString = "§f강화 §7+ §c";
@@ -232,7 +232,7 @@ public class PowerUP extends JavaPlugin {
         int powerLevel = getPowerLevel(powerLevelString); //현재 몇강인지 가져옴
 
         int rdNum = getRandom(1, 10);
-        if(rdNum > powerLevel){ //성공 시
+        if(rdNum > powerLevel+1){ //성공 시
 
             powerLevel += 1;
             targetItem = setItemDamage(targetItem, powerLevel+1); //실제 데미지 설정, 1강일 땐 2여야해서 +1
@@ -327,7 +327,7 @@ public class PowerUP extends JavaPlugin {
 
                     String powerLevelString = getPowerLevelString(targetItem.getItemMeta().getLore());
                     int powerLevel = getPowerLevel(powerLevelString);
-                    int needAmount = (powerLevel <= 0 ? 1 : powerLevel);
+                    int needAmount = powerLevel+1;
 
                     if(powerUpMaterial == null || powerUpMaterial.getType() != Material.NETHER_STAR || powerUpMaterial.getAmount() < needAmount){
                         clickedPlayer.sendMessage(msgPrefix + "§c네더의 별이 부족합니다. §f(§e"+needAmount+"개 필요§f)");
